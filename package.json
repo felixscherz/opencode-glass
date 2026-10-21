@@ -1,0 +1,26 @@
+{
+  "name": "opencode-glass",
+  "version": "0.1.0",
+  "description": "OpenCode v2 plugin that records the exact requests sent to model providers",
+  "type": "module",
+  "main": "./server.ts",
+  "exports": {
+    ".": "./server.ts",
+    "./server": "./server.ts"
+  },
+  "files": [
+    "server.ts",
+    "src"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test test/*.test.ts"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@opencode/plugin": "^2.0.29",
+    "@types/node": "^24.19.2",
+    "effect": "^4.0.1",
+    "typescript": "^5.9.3"
+  }
+}
