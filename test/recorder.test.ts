@@ -28,28 +28,31 @@ test("a request and its response share one exchange prefix, and exchanges sort i
   await recorder.write(first, capture("request", { messages: [] }))
   await recorder.write(second, capture("response", "data: [DONE]\n\n"))
 
-  const files = (await readdir(path.join(directory, "ses_1"))).sort()
-  assert.deepEqual(files, [
-    "2026-10-21T10-00-00-000Z-0001-title-request.json",
+  const session = path.join(directory, "ses_1")
+  assert.deepEqual((await readdir(session)).sort(), [
     "2026-10-21T10-00-00-000Z-0001-title-request.md",
-    "2026-10-21T10-00-00-000Z-0002-primary-request.json",
     "2026-10-21T10-00-00-000Z-0002-primary-request.md",
-    "2026-10-21T10-00-00-000Z-0002-primary-response.json",
     "2026-10-21T10-00-00-000Z-0002-primary-response.md",
+    "raw",
   ])
-  const response = JSON.parse(await readFile(`${second}-response.json`, "utf8"))
+  assert.deepEqual((await readdir(path.join(session, "raw"))).sort(), [
+    "2026-10-21T10-00-00-000Z-0001-title-request.json",
+    "2026-10-21T10-00-00-000Z-0002-primary-request.json",
+    "2026-10-21T10-00-00-000Z-0002-primary-response.json",
+  ])
+  const response = JSON.parse(await readFile(path.join(session, "raw", `${path.basename(second)}-response.json`), "utf8"))
   assert.equal(response.body, "data: [DONE]\n\n")
 })
 
-test("websocket frames are appended to one JSON lines file in arrival order", async () => {
+test("websocket frames are appended to one raw JSON lines file in arrival order", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "glass-"))
   const recorder = createRecorder(directory)
-  const exchange = recorder.exchange("ses_1", "primary", new Date())
+  const exchange = recorder.exchange("ses_1", "primary", new Date("2026-10-21T10:00:00.000Z"))
 
   await recorder.appendFrame(exchange, { receivedAt: "t1", frame: { type: "delta" } })
   await recorder.appendFrame(exchange, { receivedAt: "t2", frame: { type: "done" } })
 
-  const lines = (await readFile(`${exchange}-response.jsonl`, "utf8")).trim().split("\n").map((line) => JSON.parse(line))
+  const lines = (await readFile(path.join(directory, "ses_1", "raw", `${path.basename(exchange)}-response.jsonl`), "utf8")).trim().split("\n").map((line) => JSON.parse(line))
   assert.deepEqual(lines, [
     { receivedAt: "t1", frame: { type: "delta" } },
     { receivedAt: "t2", frame: { type: "done" } },

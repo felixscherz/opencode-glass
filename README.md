@@ -8,7 +8,7 @@ response, as it goes over the wire. That includes the parts `/export` leaves out
 - the full system prompt, including your `AGENTS.md` instructions and the list of available skills
 - every tool definition with its description and JSON schema
 - auxiliary requests such as session title generation and compaction
-- the raw response stream, chunk by chunk, and provider errors
+- the model's reply as it came back: reasoning, text, and tool calls joined from the stream, plus provider errors
 
 Use it to understand why the model behaves the way it does, to check what a skill or instruction file adds to the
 context, or to compare how a change to your setup shows up in the prompt.
@@ -85,14 +85,15 @@ sort in the order the calls were made. This is a real capture of a one-message s
 ```
 ~/.local/share/opencode-glass/
 └── ses_ea2adbc1affer8Y5QpLSiPGzBR/
-    ├── 2026-10-21T07-17-15-065Z-0001-title-request.json
     ├── 2026-10-21T07-17-15-065Z-0001-title-request.md
-    ├── 2026-10-21T07-17-15-065Z-0001-title-response.json
     ├── 2026-10-21T07-17-15-065Z-0001-title-response.md
-    ├── 2026-10-21T07-17-15-072Z-0002-primary-request.json
     ├── 2026-10-21T07-17-15-072Z-0002-primary-request.md
-    ├── 2026-10-21T07-17-15-072Z-0002-primary-response.json
-    └── 2026-10-21T07-17-15-072Z-0002-primary-response.md
+    ├── 2026-10-21T07-17-15-072Z-0002-primary-response.md
+    └── raw/
+        ├── 2026-10-21T07-17-15-065Z-0001-title-request.json
+        ├── 2026-10-21T07-17-15-065Z-0001-title-response.json
+        ├── 2026-10-21T07-17-15-072Z-0002-primary-request.json
+        └── 2026-10-21T07-17-15-072Z-0002-primary-response.json
 ```
 
 The part after the number is the kind of call: `primary` is the agent loop, `title` generates the session title,
@@ -101,11 +102,15 @@ causes several calls: one `primary` call per step of the agent loop, for example
 
 Every capture comes in two formats:
 
-- **`.md` for reading.** The body is shown as a JSON outline, and every long string in it (the system prompt, tool
-  descriptions, message content, the response stream) is printed as plain text under its JSON path, so you read it
-  as written instead of as one escaped JSON string.
-- **`.json` for tools.** Metadata, headers, and the body: parsed when it is JSON, otherwise the raw text, such as a
-  server-sent event stream exactly as received. Use it with `jq` or to diff two turns.
+- **`.md` for reading.** A request body is shown as a JSON outline, and every long string in it (the system prompt,
+  tool descriptions, message content) is printed as plain text under its JSON path, so you read it as written instead
+  of as one escaped JSON string. A response shows the reply the model gave: the reasoning, text, and tool calls the
+  provider streamed as many small events, joined back together, then the token usage. This works for Chat
+  Completions, Anthropic Messages, OpenAI Responses, and Gemini, streamed or not. A response in any other format, or
+  an error body, is shown like a request body.
+- **`raw/*.json` for tools.** Metadata, headers, and the body: parsed when it is JSON, otherwise the raw text, such as
+  a server-sent event stream exactly as received. Use it with `jq` or to diff two turns. Each `.md` file links to its
+  raw file.
 
 Excerpts from `0002-primary-request.md` above, shortened where marked with `…`:
 
@@ -167,7 +172,7 @@ You are an AI agent running in OpenCode, a coding agent harness. Help the user a
 …
 ````
 
-And the matching `0002-primary-response.md`, which holds the stream as the provider sent it:
+And the matching `0002-primary-response.md`, which holds the reply joined from the stream:
 
 ````markdown
 # primary response
@@ -180,27 +185,38 @@ And the matching `0002-primary-response.md`, which holds the stream as the provi
 | model | `{"id":"m","providerID":"fake","variant":"default"}` |
 | transport | http |
 | status | 200 |
+| raw | [raw/2026-10-21T07-17-15-072Z-0002-primary-response.json](raw/2026-10-21T07-17-15-072Z-0002-primary-response.json) |
 
+## Reply
+
+| | |
+|---|---|
+| format | Chat Completions |
+| model | m |
+| stop reason | stop |
+
+## Usage
 …
 
-### body
+## Headers
+…
+
+## Text
 
 ```
-data: {"id":"x","object":"chat.completion.chunk","created":0,"model":"m","choices":[{"index":0,"delta":{"role":"assistant","content":"hello "},"finish_reason":null}]}
-
-data: {"id":"x","object":"chat.completion.chunk","created":0,"model":"m","choices":[{"index":0,"delta":{"content":"from fake ü"},"finish_reason":null}]}
-
-…
-
-data: [DONE]
+hello from fake ü
 ```
 ````
 
-The body is whatever the provider's API expects, so its shape depends on the provider: Chat Completions as above,
+If the model calls a tool, each call gets its own `## Tool call: <name>` section with the arguments as JSON. Reasoning
+appears under `## Reasoning` when the provider sends it as text; when it only sends encrypted reasoning, the section
+says so.
+
+The request body is whatever the provider's API expects, so its shape depends on the provider: Chat Completions as above,
 or Anthropic Messages, OpenAI Responses, Gemini, and so on. For example, with a Chat Completions provider:
 
 ```sh
-cd ~/.local/share/opencode-glass/<sessionID>
+cd ~/.local/share/opencode-glass/<sessionID>/raw
 
 # the system prompt as plain text
 jq -r '.body.messages[] | select(.role == "system") | .content' *-0002-primary-request.json
@@ -212,8 +228,8 @@ jq -c '[.body.tools[]?.function.name]' *-request.json
 diff <(jq . *-0002-primary-request.json) <(jq . *-0003-primary-request.json)
 ```
 
-For providers that stream over a WebSocket instead of HTTP, the response is a `…-response.jsonl` file with one line
-per received frame instead of the `.json` and `.md` pair.
+For providers that stream over a WebSocket instead of HTTP, the response is a `raw/…-response.jsonl` file with one line
+per received frame, and there is no `.md` file for it.
 
 If a response stream breaks off, for example because you interrupted the agent, the capture keeps what arrived and
 records why in `error`.
