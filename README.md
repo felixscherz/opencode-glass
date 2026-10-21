@@ -24,7 +24,7 @@ Nothing else. OpenCode runs the TypeScript sources directly, so there is no buil
 1. Clone the repository somewhere permanent. OpenCode loads the plugin from this folder, so keep it there.
 
    ```sh
-   git clone <repository-url> ~/opencode-glass
+   git clone https://github.com/felixscherz/opencode-glass.git ~/opencode-glass
    ```
 
 2. Add the folder to `plugins` in your global OpenCode config, `~/.config/opencode/opencode.json`. Use the absolute
