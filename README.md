@@ -26,6 +26,12 @@ Add the repository directory to `plugins` in `~/.config/opencode/opencode.json` 
 `options` is optional. The entry must point at the directory, not at a file: for a local path, OpenCode loads
 `<directory>/server.ts`.
 
+## Finding the captures
+
+Run `/glass` in the TUI (also in the command palette as "Show capture folder"). It shows the open session's capture
+folder and copies the path to the clipboard (via OSC 52, which most terminals support). On the home screen it shows
+the root folder. The command only touches the TUI, so nothing is added to the session or sent to the model.
+
 ## Output
 
 Captures go to `directory`, by default `$XDG_DATA_HOME/opencode-glass` (`~/.local/share/opencode-glass`), one folder
